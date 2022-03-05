@@ -11,18 +11,24 @@ module.exports = class Application {
     constructor() {
         this.emitter = new EventEmitter();
         this.server = this._createServer();
+        this.middlewares = [];
     }
 
     listen(port, callback) {
         this.server.listen(port, callback);
     }
 
+    use(middleware) {
+        this.middlewares.push(middleware);
+    }
+
     addRouter(router) {
         Object.keys(router.endpoints).forEach(path => {
             const endpoint = router.endpoints[path];
             Object.keys(endpoint).forEach(method => {
-                const handler = endpoint[method];
                 this.emitter.on(this._getRouteMask(path, method), (req, res) => {
+                    const handler = endpoint[method];
+                    this.middlewares.forEach(mw => mw(req, res));
                     handler(req, res);
                 })
             })
@@ -31,8 +37,13 @@ module.exports = class Application {
 
     _createServer() {
         return http.createServer((req, res) => {
-            res.writeHead(200, {
-                'Content-type': 'application/json'
+            let body = "";
+            req.on('data', (chunk) => {
+                body += chunk;
+            })
+
+            req.on('end', () => {
+
             })
 
             const emitted = this.emitter.emit(this._getRouteMask(req.url, req.method), req, res)
